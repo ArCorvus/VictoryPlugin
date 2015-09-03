@@ -226,11 +226,7 @@ class VICTORYBPLIBRARY_API UVictoryBPFunctionLibrary : public UBlueprintFunction
 	/** Retrieve an array of all of the Victory Instanced Static Mesh Actors that have been created during runtime! */
 	UFUNCTION(BlueprintPure, Category = "VictoryBPLibrary|Victory Instanced Static Mesh",meta=(WorldContext="WorldContextObject"))
 	static void VictoryISM_GetAllVictoryISMActors(UObject* WorldContextObject, TArray<AVictoryISM*>& Out);
-	 
-	/** Finds all instances of a specified Blueprint or class, and all subclasses of this class, and converts them into a single Instanced Static Mesh Actor! Returns the created Victory ISM actors. Please note all actors of subclasses are found as well, so use a very specific blueprint / class if you only want to generate Victory ISM actors for specific classes! Ignores actor classes that dont have a static mesh component. Please note that instanced static mesh actors can only be created for actors sharing the same static mesh asset. Different Instanced Static Mesh Actors are created for each unique static mesh asset found in the whole group of actors! */ 
-	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary|Victory Instanced Static Mesh",meta=(WorldContext="WorldContextObject"))
-	static void VictoryISM_ConvertToVictoryISMActors(UObject* WorldContextObject, TSubclassOf<AActor> ActorClass, TArray<AVictoryISM*>& CreatedISMActors, bool DestroyOriginalActors=true, int32 MinCountToCreateISM=2);
-	 
+
 	//~~~~~~~~~~
 	// 	File I/O
 	//~~~~~~~~~~
@@ -330,10 +326,6 @@ class VICTORYBPLIBRARY_API UVictoryBPFunctionLibrary : public UBlueprintFunction
 	UFUNCTION(BlueprintPure, Category="VictoryBPLibrary|Math", meta=(Keywords="position"))
 	static FVector2D Vector2DInterpTo_Constant(FVector2D Current, FVector2D Target, float DeltaTime, float InterpSpeed);
 	
-	/** Returns Value mapped from one range into another where the value is clamped to the output range.  (e.g. 0.5 normalized from the range 0->1 to 0->50 would result in 25) */
-	UFUNCTION(BlueprintPure, Category="VictoryBPLibrary|Math", meta=(Keywords = "get mapped value clamped"))
-	static float MapRangeClamped(float Value, float InRangeA, float InRangeB, float OutRangeA, float OutRangeB);
-
 	/** Server Travel! This is an async load level process which allows you to put up a UMG widget while the level loading occurs! */
 	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary",meta=(WorldContext="WorldContextObject"))
 	static void ServerTravel(UObject* WorldContextObject,FString MapName, bool bNotifyPlayers=true);
@@ -468,22 +460,9 @@ class VICTORYBPLIBRARY_API UVictoryBPFunctionLibrary : public UBlueprintFunction
 	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary", meta = (HidePin = "WorldContextObject", DefaultToSelf = "WorldContextObject"))
 	static UPrimitiveComponent* CreatePrimitiveComponent(UObject* WorldContextObject, TSubclassOf<UPrimitiveComponent> CompClass, FName Name, FVector Location, FRotator Rotation);
 
-
-
-	/** Spawn an Actor and choose which level you want them to spawn into! */
-	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary", meta = (HidePin = "WorldContextObject", DefaultToSelf = "WorldContextObject"))
-	static AActor* SpawnActorIntoLevel(UObject* WorldContextObject, TSubclassOf<AActor> ActorClass, FName Level = NAME_None, FVector Location = FVector::ZeroVector, FRotator Rotation = FRotator::ZeroRotator, bool SpawnEvenIfColliding = true);
-
 	/** Get the names of all currently loaded and visible levels! */
 	UFUNCTION(BlueprintPure, Category = "VictoryBPLibrary", meta = (HidePin = "WorldContextObject", DefaultToSelf = "WorldContextObject"))
 	static void GetNamesOfLoadedLevels(UObject* WorldContextObject, TArray<FString>& NamesOfLoadedLevels);
-
-
-
-
-	/** Obtain the scaled,rotated, and translated vertex positions for any static mesh! Returns false if operation could not occur because the comp or static mesh asset was invalid. <3 Rama */
-	UFUNCTION(BlueprintPure, Category = "VictoryBPLibrary")
-	static bool GetStaticMeshVertexLocations(UStaticMeshComponent* Comp, TArray<FVector>& VertexPositions);
 
 	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary")
 	static void AddToActorRotation(AActor* TheActor, FRotator AddRot);
@@ -640,11 +619,6 @@ class VICTORYBPLIBRARY_API UVictoryBPFunctionLibrary : public UBlueprintFunction
 	/** Returns three arrays containing all of the resolutions and refresh rates for the current computer's current display adapter. You can loop over just 1 of the arrays and use the current index for the other two arrays, as all 3 arrays will always have the same length. Returns false if operation could not occur. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "VictoryBPLibrary", meta = (Keywords = "screen resolutions display adapter"))
 		static bool OptionsMenu__GetDisplayAdapterScreenResolutions(TArray<int32>& Widths, TArray<int32>& Heights, TArray<int32>& RefreshRates, bool IncludeRefreshRates = false);
-
-	/** Clones an actor by obtaining its class and creating a copy. Returns the created Actor. The cloned actor is set to have the rotation and location of the initial actor. You can optionally specify location / rotation offsets for the new clone from original actor. Use IsValid to know if the actor was able to be cloned. */
-	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary", meta = (HidePin = "WorldContextObject", DefaultToSelf = "WorldContextObject"))
-		static AStaticMeshActor* Clone__StaticMeshActor(UObject* WorldContextObject, bool&IsValid, AStaticMeshActor* ToClone, FVector LocationOffset = FVector(0, 0, 0), FRotator RotationOffset = FRotator(0, 0, 0));
-
 
 	/** Teleport Actor To Actor. Moves an actor instantly to the position and rotation of another actor. Useful for player starts, notes, triggers, and any other destination actors who dont have collision. Returns false if the operation could not occur. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Actor|VictoryBPLibrary")
@@ -1116,22 +1090,6 @@ class VICTORYBPLIBRARY_API UVictoryBPFunctionLibrary : public UBlueprintFunction
 	/** Save an array of pixels to disk as a PNG! It is very important that you supply the curret width and height of the image! Returns false if Width * Height != Array length or file could not be saved to the location specified. I return an ErrorString to clarify what the exact issue was. -Rama */
 	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary|Load Texture From File",meta=(Keywords="create image png jpg jpeg bmp bitmap ico icon exr icns"))
 	static bool Victory_SavePixels(const FString& FullFilePath,int32 Width, int32 Height, const TArray<FLinearColor>& ImagePixels, FString& ErrorString);
-	 
-	
-	 
-	/** Contributed by UE4 forum member n00854180t! Plays a .ogg sound from file, attached to and following the specified component. This is a fire and forget sound. Replication is also not handled at this point.
-	* @param FilePath - Path to sound file to play
-	* @param AttachComponent - Component to attach to.
-	* @param AttachPointName - Optional named point within the AttachComponent to play the sound at
-	* @param Location - Depending on the value of Location Type this is either a relative offset from the attach component/point or an absolute world position that will be translated to a relative offset
-	* @param LocationType - Specifies whether Location is a relative offset or an absolute world position
-	* @param bStopWhenAttachedToDestroyed - Specifies whether the sound should stop playing when the owner of the attach to component is destroyed.
-	* @param VolumeMultiplier - Volume multiplier
-	* @param PitchMultiplier - PitchMultiplier
-	* @param AttenuationSettings - Override attenuation settings package to play sound with
-	*/ 
-	UFUNCTION(BlueprintCallable, Category = "VictoryBPLibrary", meta = (VolumeMultiplier = "1.0", PitchMultiplier = "1.0", AdvancedDisplay = "2", UnsafeDuringActorConstruction = "true"))
-	static class UAudioComponent* PlaySoundAttachedFromFile(const FString& FilePath, class USceneComponent* AttachToComponent, FName AttachPointName = NAME_None, FVector Location = FVector(ForceInit), EAttachLocation::Type LocationType = EAttachLocation::SnapToTarget, bool bStopWhenAttachedToDestroyed = false, float VolumeMultiplier = 1.f, float PitchMultiplier = 1.f, float StartTime = 0.f, class USoundAttenuation* AttenuationSettings = NULL);
 	 
 	/** Contributed by UE4 forum member n00854180t! Plays a .ogg sound at the given location. This is a fire and forget sound and does not travel with any actor. Replication is also not handled at this point.
 	* @param FilePath - Path to sound file to play

@@ -14,7 +14,6 @@
 
 //~~~ PhysX ~~~
 #include "PhysXIncludes.h"
-#include "PhysXPublic.h"		//For the ptou conversions
 //~~~~~~~~~~~
  
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -516,117 +515,6 @@ void UVictoryBPFunctionLibrary::VictoryISM_GetAllVictoryISMActors(UObject* World
 	}
 }
 	
-void UVictoryBPFunctionLibrary::VictoryISM_ConvertToVictoryISMActors(
-	UObject* WorldContextObject, 
-	TSubclassOf<AActor> ActorClass, 
-	TArray<AVictoryISM*>& CreatedISMActors, 
-	bool DestroyOriginalActors,
-	int32 MinCountToCreateISM
-){
-	//User Input Safety
-	if(MinCountToCreateISM < 1) MinCountToCreateISM = 1; //require for array access safety
-	
-	CreatedISMActors.Empty();
-	
-	if(!WorldContextObject) return;
-	 
-	UWorld* const World = GEngine->GetWorldFromContextObject(WorldContextObject);
-	if(!World) return;
-	//~~~~~~~~~~~
-	
-	//I want one array of actors for each unique static mesh asset!  -Rama
-	TMap< UStaticMesh*,TArray<AActor*> > VictoryISMMap;
-	
-	//Note the ActorClass filter on the Actor Iterator! -Rama
-	for (TActorIterator<AActor> Itr(World, ActorClass); Itr; ++Itr)
-	{
-		//Get Static Mesh Component!
-		UStaticMeshComponent* Comp = Itr->FindComponentByClass<UStaticMeshComponent>();
-		if(!Comp) continue; 
-		if(!Comp->IsValidLowLevel()) continue;
-		//~~~~~~~~~
-		
-		//Add Key if not present!
-		if(!VictoryISMMap.Contains(Comp->StaticMesh))
-		{
-			VictoryISMMap.Add(Comp->StaticMesh);
-			VictoryISMMap[Comp->StaticMesh].Empty(); //ensure array is properly initialized
-		}
-		
-		//Add the actor!
-		VictoryISMMap[Comp->StaticMesh].Add(*Itr);
-	}
-	  
-	//For each Static Mesh Asset in the Victory ISM Map
-	for (TMap< UStaticMesh*,TArray<AActor*> >::TIterator It(VictoryISMMap); It; ++It)
-	{
-		//Get the Actor Array for this particular Static Mesh Asset!
-		TArray<AActor*>& ActorArray = It.Value();
-		
-		//No entries?
-		if(ActorArray.Num() < MinCountToCreateISM) continue;
-		//~~~~~~~~~~~~~~~~~~
-		  
-		//Get the Root
-		UStaticMeshComponent* RootSMC = ActorArray[0]->FindComponentByClass<UStaticMeshComponent>();
-		if(!RootSMC) continue;
-		//~~~~~~~~~~
-		
-		//Gather transforms!
-		TArray<FTransform> WorldTransforms;
-		for(AActor* Each : ActorArray)
-		{
-			WorldTransforms.Add(Each->GetTransform());
-			 
-			//Destroy original?
-			if(DestroyOriginalActors)
-			{
-				Each->Destroy();
-			}
-		}
-		  
-		//Create Victory ISM
-		FActorSpawnParameters SpawnInfo;
-		//SpawnInfo.bNoCollisionFail 		= true; //always create!
-		SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		SpawnInfo.bDeferConstruction 	= false;
-		 
-		AVictoryISM* NewISM = World->SpawnActor<AVictoryISM>(
-			AVictoryISM::StaticClass(), 
-			RootSMC->GetComponentLocation() ,
-			RootSMC->GetComponentRotation(), 
-			SpawnInfo 
-		);
-		
-		if(!NewISM) continue;
-		//~~~~~~~~~~
-		
-		//Mesh
-		NewISM->Mesh->SetStaticMesh(RootSMC->StaticMesh);
-	
-		//Materials
-		const int32 MatTotal = RootSMC->GetNumMaterials();
-		for(int32 v = 0; v < MatTotal; v++)
-		{
-			NewISM->Mesh->SetMaterial(v,RootSMC->GetMaterial(v));
-		}
-		 
-		//Set Transforms!
-		for(const FTransform& Each : WorldTransforms)
-		{
-			NewISM->Mesh->AddInstanceWorldSpace(Each);
-		}
-		
-		//Add new ISM!
-		CreatedISMActors.Add(NewISM);
-	}
-	
-	//Clear memory
-	VictoryISMMap.Empty();
-}
-	 
-	
-	 
 void UVictoryBPFunctionLibrary::SaveGameObject_GetAllSaveSlotFileNames(TArray<FString>& FileNames)
 {
 	FileNames.Empty();
@@ -677,11 +565,6 @@ FVector2D UVictoryBPFunctionLibrary::Vector2DInterpTo(FVector2D Current, FVector
 FVector2D UVictoryBPFunctionLibrary::Vector2DInterpTo_Constant(FVector2D Current, FVector2D Target, float DeltaTime, float InterpSpeed)
 {
 	return FMath::Vector2DInterpConstantTo( Current, Target, DeltaTime, InterpSpeed );
-}
-
-float UVictoryBPFunctionLibrary::MapRangeClamped(float Value, float InRangeA, float InRangeB, float OutRangeA, float OutRangeB)
-{ 
-	return FMath::GetMappedRangeValueClamped(FVector2D(InRangeA,InRangeB),FVector2D(OutRangeA,OutRangeB),Value);
 }
 
 FVictoryInput UVictoryBPFunctionLibrary::VictoryGetVictoryInput(const FKeyEvent& KeyEvent)
@@ -1313,54 +1196,6 @@ UPrimitiveComponent* UVictoryBPFunctionLibrary::CreatePrimitiveComponent(
 	return NewComp;
 }
 
-AActor* UVictoryBPFunctionLibrary::SpawnActorIntoLevel(UObject* WorldContextObject, TSubclassOf<AActor> ActorClass, FName Level, FVector Location, FRotator Rotation,bool SpawnEvenIfColliding)
-{
-	if(!ActorClass) return NULL;
-	//~~~~~~~~~~~~~~~~~
-	
-	//using a context object to get the world!
-    UWorld* const World = GEngine->GetWorldFromContextObject(WorldContextObject);
-	if(!World) return NULL;
-	//~~~~~~~~~~~
-	
-	FActorSpawnParameters SpawnParameters;
-	if (SpawnEvenIfColliding)
-	{
-		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	}
-	
-	SpawnParameters.bDeferConstruction = false;
-	 
-	 
-	//Get Level from Name!
-	ULevel* FoundLevel = NULL;
-	
-	for(const ULevelStreaming* EachLevel : World->StreamingLevels)
-	{
-		if( ! EachLevel) continue;
-		//~~~~~~~~~~~~~~~~
-	
-		ULevel* LevelPtr = EachLevel->GetLoadedLevel();
-		
-		//Valid?
-		if(!LevelPtr) continue;
-		
-		if(EachLevel->GetWorldAssetPackageFName() == Level)
-		{
-			FoundLevel = LevelPtr; 
-			break;
-		} 
-	}
-	//~~~~~~~~~~~~~~~~~~~~~
-	if(FoundLevel)
-	{
-		SpawnParameters.OverrideLevel = FoundLevel;
-	}
-	//~~~~~~~~~~~~~~~~~~~~~
-	
-	return World->SpawnActor( ActorClass, &Location, &Rotation, SpawnParameters);
-	
-}
 void UVictoryBPFunctionLibrary::GetNamesOfLoadedLevels(UObject* WorldContextObject, TArray<FString>& NamesOfLoadedLevels)
 {
 	
@@ -1449,63 +1284,6 @@ FVector2D UVictoryBPFunctionLibrary::ProjectWorldToScreenPosition(const FVector&
 	
 	return FVector2D::ZeroVector;
 }
-
-
-
-bool UVictoryBPFunctionLibrary::GetStaticMeshVertexLocations(UStaticMeshComponent* Comp, TArray<FVector>& VertexPositions)
-{
-	VertexPositions.Empty();
-	 
-	if(!Comp) 						
-	{
-		return false;
-	}
-	
-	if(!Comp->IsValidLowLevel()) 
-	{
-		return false;
-	}
-	//~~~~~~~~~~~~~~~~~~~~~~~
-	
-	//Component Transform
-	FTransform RV_Transform = Comp->GetComponentTransform(); 
-	
-	//Body Setup valid?
-	UBodySetup* BodySetup = Comp->GetBodySetup();
-	
-	if(!BodySetup || !BodySetup->IsValidLowLevel())
-	{
-		return false;
-	}  
-	
-	for(PxTriangleMesh* EachTriMesh : BodySetup->TriMeshes)
-	{
-		if (!EachTriMesh)
-		{
-			return false;
-		}
-		//~~~~~~~~~~~~~~~~
-
-		//Number of vertices
-		PxU32 VertexCount = EachTriMesh->getNbVertices();
-
-		//Vertex array
-		const PxVec3* Vertices = EachTriMesh->getVertices();
-
-		//For each vertex, transform the position to match the component Transform 
-		for (PxU32 v = 0; v < VertexCount; v++)
-		{
-			VertexPositions.Add(RV_Transform.TransformPosition(P2UVector(Vertices[v])));
-		}
-	}
-	return true;
-	
-	/*
-	//See this wiki for more info on getting triangles
-	//		https://wiki.unrealengine.com/Accessing_mesh_triangles_and_vertex_positions_in_build
-	*/
-} 
-
 
 void UVictoryBPFunctionLibrary::AddToActorRotation(AActor* TheActor, FRotator AddRot)
 {
@@ -1989,80 +1767,6 @@ FVector UVictoryBPFunctionLibrary::TransformVectorToActorSpace(AActor* Actor, co
 {
 	if(!Actor) return FVector::ZeroVector;
 	return Actor->ActorToWorld().InverseTransformVector(InVector);
-}
-
-AStaticMeshActor* UVictoryBPFunctionLibrary::Clone__StaticMeshActor(UObject* WorldContextObject, bool&IsValid, AStaticMeshActor* ToClone, FVector LocationOffset,FRotator RotationOffset)
-{
-	IsValid = false;
-	if(!ToClone) return NULL;
-	if(!ToClone->IsValidLowLevel()) return NULL;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	  
-	if(!WorldContextObject) return NULL;
-	
-	//using a context object to get the world!
-    UWorld* const World = GEngine->GetWorldFromContextObject(WorldContextObject);
-	if(!World) return NULL;
-	//~~~~~~~~~~~
-	
-	//For BPS
-	UClass* SpawnClass = ToClone->GetClass();
-	
-	FActorSpawnParameters SpawnInfo;
-	SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	SpawnInfo.Owner 				= ToClone;
-	SpawnInfo.Instigator				= NULL;
-	SpawnInfo.bDeferConstruction 	= false;
-	
-	AStaticMeshActor* NewSMA = World->SpawnActor<AStaticMeshActor>(SpawnClass, ToClone->GetActorLocation() + FVector(0,0,512) ,ToClone->GetActorRotation(), SpawnInfo );
-	
-	if(!NewSMA) return NULL;
-	
-	//Copy Transform
-	NewSMA->SetActorTransform(ToClone->GetTransform());
-	
-	//Mobility
-	NewSMA->StaticMeshComponent->SetMobility(EComponentMobility::Movable	);
-	
-	//copy static mesh
-	NewSMA->StaticMeshComponent->SetStaticMesh(ToClone->StaticMeshComponent->StaticMesh);
-	
-	//~~~
-	
-	//copy materials
-	TArray<UMaterialInterface*> Mats;
-	ToClone->StaticMeshComponent->GetUsedMaterials(Mats);
-	
-	const int32 Total = Mats.Num();
-	for(int32 v = 0; v < Total; v++ )
-	{
-		NewSMA->StaticMeshComponent->SetMaterial(v,Mats[v]);
-	}
-	
-	//~~~
-	
-	//copy physics state
-	if(ToClone->StaticMeshComponent->IsSimulatingPhysics())
-	{
-		NewSMA->StaticMeshComponent->SetSimulatePhysics(true);
-	}
-	
-	//~~~
-	
-	//Add Location Offset
-	const FVector SpawnLoc = ToClone->GetActorLocation() + LocationOffset;
-	NewSMA->SetActorLocation(SpawnLoc);
-	
-	//Add Rotation offset
-	FTransform TheTransform = NewSMA->GetTransform();
-	TheTransform.ConcatenateRotation(RotationOffset.Quaternion());
-	TheTransform.NormalizeRotation();
-	
-	//Set Transform
-	NewSMA->SetActorTransform(TheTransform);
-	
-	IsValid = true;
-	return NewSMA;
 }
 
 bool UVictoryBPFunctionLibrary::Actor__TeleportToActor(AActor* ActorToTeleport, AActor* DestinationActor)
@@ -3916,17 +3620,6 @@ bool UVictoryBPFunctionLibrary::Victory_SavePixels(const FString& FullFilePath,i
 	ErrorString = "Success! or if returning false, the saving of file to disk did not succeed for File IO reasons";
 	return FFileHelper::SaveArrayToFile(ImageWrapper->GetCompressed(), *FinalFilename);
 	*/
-}
-
-
-class UAudioComponent* UVictoryBPFunctionLibrary::PlaySoundAttachedFromFile(const FString& FilePath, class USceneComponent* AttachToComponent, FName AttachPointName, FVector Location, EAttachLocation::Type LocationType, bool bStopWhenAttachedToDestroyed, float VolumeMultiplier, float PitchMultiplier, float StartTime, class USoundAttenuation* AttenuationSettings)
-{	
-	USoundWave* sw = GetSoundWaveFromFile(FilePath);
-
-	if (!sw)
-		return NULL;
-
-	return UGameplayStatics::SpawnSoundAttached(sw, AttachToComponent, AttachPointName, Location, LocationType, bStopWhenAttachedToDestroyed, VolumeMultiplier, PitchMultiplier, StartTime, AttenuationSettings);
 }
 
 void UVictoryBPFunctionLibrary::PlaySoundAtLocationFromFile(UObject* WorldContextObject, const FString& FilePath, FVector Location, float VolumeMultiplier, float PitchMultiplier, float StartTime, class USoundAttenuation* AttenuationSettings)
